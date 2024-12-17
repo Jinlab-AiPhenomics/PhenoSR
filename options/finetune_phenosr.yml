@@ -1,0 +1,193 @@
+name: finetune_phenosr
+model_type: PhenoSRGANModel
+scale: 4
+num_gpu: 1 # auto: can infer from your visible devices automatically.
+manual_seed: 0
+stage: finetune
+
+l1_gt_usm: True
+percep_gt_usm: True
+gan_gt_usm: False
+
+resize_prob: [ 0.2, 0.7, 0.1 ]
+resize_range: [ 0.15, 1.5 ]
+gaussian_noise_prob: 0.5
+noise_range: [ 1, 30 ]
+poisson_scale_range: [ 0.05, 3 ]
+gray_noise_prob: 0.4
+jpeg_range: [ 30, 95 ]
+
+second_blur_prob: 0.8
+resize_prob2: [ 0.3, 0.4, 0.3 ] 
+resize_range2: [ 0.3, 1.2 ]
+gaussian_noise_prob2: 0.5
+noise_range2: [ 1, 25 ]
+poisson_scale_range2: [ 0.05, 2.5 ]
+gray_noise_prob2: 0.4
+jpeg_range2: [ 30, 95 ]
+
+gt_size: 256
+queue_size: 160
+
+datasets:
+  train:
+    name: PhenoSR
+    type: PhenoSRDataset
+    # the path of sr dataset
+    dataroot_gt: ~
+    # the path of the meta info file
+    meta_info: ~
+    io_backend:
+      type: disk
+
+    blur_kernel_size: 21
+    kernel_list: [ 'iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso' ]
+    kernel_prob: [ 0.45, 0.25, 0.12, 0.03, 0.12, 0.03 ]
+    sinc_prob: 0.1
+    blur_sigma: [ 0.2, 3 ]
+    betag_range: [ 0.5, 4 ]
+    betap_range: [ 1, 2 ]
+
+    blur_kernel_size2: 21
+    kernel_list2: [ 'iso', 'aniso', 'generalized_iso', 'generalized_aniso', 'plateau_iso', 'plateau_aniso' ]
+    kernel_prob2: [ 0.45, 0.25, 0.12, 0.03, 0.12, 0.03 ]
+    sinc_prob2: 0.1
+    blur_sigma2: [ 0.2, 1.5 ]
+    betag_range2: [ 0.5, 4 ]
+    betap_range2: [ 1, 2 ]
+
+    final_sinc_prob: 0.8
+
+    gt_size: 256
+    use_hflip: True
+    use_rot: False
+
+    use_shuffle: true
+    num_worker_per_gpu: 6
+    batch_size_per_gpu: 2
+    dataset_enlarge_ratio: 1
+    prefetch_mode: cuda
+    pin_memory: true
+
+  # # Uncomment these for validation
+  # val:
+  #   name: validation
+  #   type: PairedImageDataset
+  #   dataroot_lq: /root/autodl-tmp/data/random_5000/val
+  #   dataroot_gt: /root/autodl-tmp/data/random_5000/val_gt
+  #   io_backend:
+  #     type: disk
+
+network_g:
+  type: PhenoSR
+  upscale: 4
+  in_chans: 3
+  img_size: 64
+  window_size: 8
+  img_range: 1.
+  coarse_depths: [ 6, 6]
+  refine_depths: [ 6, 6, 6, 6, 6, 6 ]
+  embed_dim: 180
+  coarse_num_heads: [ 6, 6 ]
+  refine_num_heads: [ 6, 6, 6, 6, 6, 6 ]
+  mlp_ratio: 2
+  seg_dim: 32
+  resi_connection: '1conv'
+  # the number of classes in the segmentation model
+  num_classes: ~
+  # the path of the modified HRNet model
+  seg_model_path: ~
+
+
+network_d:
+  type: UNetDiscriminatorSN
+  num_in_ch: 3
+  num_feat: 64
+  skip_connection: True
+
+path:
+  # the path of the PSNR-oriented PhenoSR model
+  pretrain_network_g: ~
+  param_key_g: params_ema
+  strict_load_g: true
+  pretrain_network_d: ~
+  param_key_d: params
+  strict_load_d: true
+  resume_state: ~
+  # Modify it to your storage path
+  root_path: ~
+
+train:
+  freeze: true
+  ema_decay: 0.999
+  optim_g:
+    type: Adam
+    lr: !!float 1e-4
+    weight_decay: 0
+    betas: [ 0.9, 0.99 ]
+  optim_d:
+    type: Adam
+    lr: !!float 1e-4
+    weight_decay: 0
+    betas: [ 0.9, 0.99 ]
+
+  scheduler:
+    type: MultiStepLR
+    milestones: [ 400000 ]
+    gamma: 0.5
+
+  total_iter: 400000
+  warmup_iter: -1  # no warm up
+
+  pixel_opt:
+    type: L1Loss
+    loss_weight: 1.0
+    reduction: mean
+  perceptual_opt:
+    type: PerceptualLoss
+    layer_weights:
+      # before relu
+      'conv1_2': 0.1
+      'conv2_2': 0.1
+      'conv3_4': 1
+      'conv4_4': 1
+      'conv5_4': 1
+    vgg_type: vgg19
+    use_input_norm: true
+    perceptual_weight: !!float 1.0
+    style_weight: 0
+    range_norm: false
+    criterion: l1
+  gan_opt:
+    type: GANLoss
+    gan_type: vanilla
+    real_label_val: 1.0
+    fake_label_val: 0.0
+    loss_weight: !!float 1e-1
+   
+  net_d_iters: 1
+  net_d_init_iters: 0
+
+# #val settings
+# val:
+#   val_freq: !!float 5e3
+#   save_img: True
+#   pbar: True
+#   metrics:
+#     psnr: # metric name
+#       type: calculate_psnr
+#       crop_border: 4
+#       test_y_channel: True
+
+
+logger:
+  print_freq: 100
+  save_checkpoint_freq: !!float 1e4
+  use_tb_logger: true
+  wandb:
+    project: ~
+    resume_id: ~
+
+dist_params:
+  backend: nccl
+  port: 29500

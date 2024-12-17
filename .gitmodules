@@ -1,0 +1,3 @@
+[submodule "HRNet"]
+	path = HRNet
+	url = https://github.com/bubbliiiing/hrnet-pytorch.git

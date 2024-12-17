@@ -70,7 +70,7 @@ Address: No. 666, Binjiang Avenue, Jiangbei New District, Nanjing 210095, China
 1. Download pre-trained model
 
 ```python
-wget https://github.com/Jinlab-AiPhenomics/PhenoSR/releases/download/v0.1.0/phenosr_20240831.pth -P weights
+wget https://github.com/Jinlab-AiPhenomics/PhenoSR/releases/download/0.1.0/phenosr_20240831.pth -P weights
 ```
 
 2. Usage
